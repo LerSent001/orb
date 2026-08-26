@@ -559,9 +559,6 @@ export function App(): React.JSX.Element {
 
     const label = styleNumericLabels[params.style]?.[locale]?.[key]
       ?? numericLabels[locale][key];
-    const step = key === "bandDensity" && params.style === "thinkingTrails"
-      ? 1
-      : spec.step;
 
     return (
       <Slider
@@ -573,7 +570,7 @@ export function App(): React.JSX.Element {
         name={label}
         onValueChange={(value) => setParam(key, value)}
         showFill
-        step={step}
+        step={spec.step}
         value={params[key]}
       />
     );

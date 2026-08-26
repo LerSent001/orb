@@ -717,7 +717,7 @@ fn glsPrismaticBand(q: vec2<f32>, forward: f32, spread: f32, offset: f32,
                     phase: f32, width: f32) -> vec2<f32> {
   let bend = offset * spread * forward;
   let drift = sin(q.x * 3.4 + phase + offset * 2.7)
-              * 0.034 * clamp(u.metalEvolution, 0.0, 2.0);
+              * 0.018 * clamp(u.metalEvolution, 0.0, 2.0);
   let distance = q.y - bend - drift;
   let progressive = 1.0 + max(forward, 0.0)
                     * (0.7 + clamp(u.metalStretch, 0.0, 1.0) * 2.8);
@@ -726,30 +726,23 @@ fn glsPrismaticBand(q: vec2<f32>, forward: f32, spread: f32, offset: f32,
     distance,
     width * progressive * (2.2 + clamp(u.metalRoughness, 0.0, 1.0) * 3.8)
   );
-  let energy = 0.82 + 0.18 * sin(phase * 1.31 + offset * 4.7);
-  return vec2<f32>(core, bloom) * energy;
+  return vec2<f32>(core, bloom);
 }
 
 fn glsRainbowDiffusionFluid(p: vec2<f32>, t: f32) -> vec3<f32> {
   // A white incident beam converges at a moving focal point, then separates
   // into independently blurred spectral bands. The fan is sampled by the
   // shared glass compositor, so the shell bends the bands at its edge.
-  let phase = t * 0.92 + u.metalPhase * 6.28318530718;
-  let evolution = clamp(u.metalEvolution, 0.0, 2.0);
-  let angle = u.metalAngle * 0.01745329252
-              + sin(phase * 0.41) * 0.085 * evolution;
+  let angle = u.metalAngle * 0.01745329252;
   var q = glsRotate(p, angle);
-  let focus = clamp(u.metalOffset, -1.0, 1.0) * 0.55
-              + sin(phase * 0.73) * 0.11 * evolution;
-  let focusY = sin(phase * 0.57 + 1.1) * 0.072 * evolution;
-  q.y = q.y - focusY
-        + sin(q.x * 2.6 - phase) * 0.028 * evolution;
+  let phase = t * 0.34 + u.metalPhase * 6.28318530718;
+  q.y = q.y + sin(q.x * 2.6 - phase) * 0.012
+                * clamp(u.metalEvolution, 0.0, 2.0);
+  let focus = clamp(u.metalOffset, -1.0, 1.0) * 0.55;
   let x = q.x - focus;
   let forward = max(x + 0.04, 0.0);
-  let fanBreath = 0.82 + 0.18 * (0.5 + 0.5 * sin(phase * 1.07 + 0.8));
-  let separation = (0.11 + clamp(u.chromaticShift, 0.0, 1.0) * 0.42) * fanBreath;
-  let width = (0.009 + clamp(u.metalScale, 0.2, 2.0) * 0.028)
-              * (0.94 + 0.06 * sin(phase * 0.89));
+  let separation = 0.11 + clamp(u.chromaticShift, 0.0, 1.0) * 0.42;
+  let width = 0.009 + clamp(u.metalScale, 0.2, 2.0) * 0.028;
   let bandCount = clamp(u.bandDensity, 1.0, 6.0);
   let depth = 0.48 + clamp(u.metalDepth, 0.0, 1.0) * 0.92;
 
@@ -788,81 +781,82 @@ fn glsRainbowDiffusionFluid(p: vec2<f32>, t: f32) -> vec3<f32> {
   return glsFinishEmissionFluid(color, p);
 }
 
-fn glsThinkingTile(local: vec2<f32>, agentIndex: f32, phase: f32) -> vec3<f32> {
-  let grid = floor(mix(13.0, 5.0, clamp(u.metalRoughness, 0.0, 1.0)) + 0.5);
-  let cell = floor((local * 0.5 + vec2<f32>(0.5)) * grid);
-  let framePhase = phase * (0.72 + 0.34 * clamp(u.metalEvolution, 0.0, 2.0))
-                   + agentIndex * 0.71;
-  let frame = floor(framePhase);
-  let frameBlend = smoothstep(0.16, 0.84, fract(framePhase));
-  let seed0 = cell + vec2<f32>(frame * 13.7 + agentIndex * 21.3,
-                               frame * -9.1 + agentIndex * 7.7);
-  let seed1 = cell + vec2<f32>((frame + 1.0) * 13.7 + agentIndex * 21.3,
-                               (frame + 1.0) * -9.1 + agentIndex * 7.7);
-  let tone = mix(lqHash(seed0), lqHash(seed1), frameBlend);
-  let accent = mix(lqHash(seed0 + vec2<f32>(4.2, 8.7)),
-                   lqHash(seed1 + vec2<f32>(4.2, 8.7)), frameBlend);
-  var tile = lqRamp(tone, u.colorA.rgb, u.colorB.rgb, u.colorC.rgb, u.colorD.rgb);
-  tile = mix(tile, u.highlightColor.rgb, smoothstep(0.76, 0.94, accent) * 0.68);
-  let contrast = 0.72 + clamp(u.metalDepth, 0.0, 1.0) * 0.72;
-  return clamp((tile - vec3<f32>(0.42)) * contrast + vec3<f32>(0.42),
-               vec3<f32>(0.0), vec3<f32>(1.0));
+fn glsCapsuleDistance(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>, radius: f32) -> f32 {
+  let pa = p - a;
+  let ba = b - a;
+  let h = clamp(dot(pa, ba) / max(dot(ba, ba), 0.0001), 0.0, 1.0);
+  return length(pa - ba * h) - radius;
 }
 
-fn glsThinkingAgentDisc(p: vec2<f32>, center: vec2<f32>, radius: f32,
-                        agentIndex: f32, count: f32, phase: f32) -> vec4<f32> {
-  let local = (p - center) / max(radius, 0.01);
-  let distance = length(local);
-  var mask = 1.0 - smoothstep(0.94, 1.0, distance);
-  if (agentIndex < count - 1.0) {
-    let biteCenter = vec2<f32>(
-      0.54 + 0.055 * sin(phase * 0.67 - agentIndex * 0.8),
-      0.035 * sin(phase * 0.81 + agentIndex * 1.3)
-    );
-    let biteRadius = 0.67 + clamp(u.metalStretch, 0.0, 1.0) * 0.27
-                     + 0.035 * sin(phase * 0.74 + agentIndex);
-    let bite = 1.0 - smoothstep(biteRadius - 0.025, biteRadius + 0.025,
-                                length(local - biteCenter));
-    mask = mask * (1.0 - bite);
-  }
-  let tile = glsThinkingTile(local, agentIndex, phase);
-  let pulse = 0.84 + 0.16 * sin(phase * 1.12 - agentIndex * 0.86);
-  let edgeShade = 1.0 - smoothstep(0.72, 0.98, distance) * 0.2;
-  return vec4<f32>(tile * pulse * edgeShade, mask);
+fn glsThinkingTrail(q: vec2<f32>, radius: f32, aspect: f32, width: f32,
+                    phase: f32, direction: f32) -> f32 {
+  let orbit = vec2<f32>(q.x * aspect, q.y / aspect);
+  let ringDistance = abs(length(orbit) - radius);
+  let angle = atan2(orbit.y, orbit.x);
+  let arcSignal = sin(angle * direction - phase);
+  let arc = smoothstep(0.68 - clamp(u.chromaticShift, 0.0, 1.0) * 1.28,
+                       0.82, arcSignal);
+  return glsLineGlow(ringDistance, width) * arc;
 }
 
-fn glsThinkingAgentsFluid(p: vec2<f32>, t: f32) -> vec3<f32> {
-  let phase = t * 1.28 + u.metalPhase * 6.28318530718;
+fn glsThinkingTrailsFluid(p: vec2<f32>, t: f32) -> vec3<f32> {
+  let phase = t * 0.78 + u.metalPhase * 6.28318530718;
   let evolution = clamp(u.metalEvolution, 0.0, 2.0);
-  let count = floor(clamp(u.bandDensity, 1.0, 6.0) + 0.5);
-  let rawRadius = 0.115 + clamp(u.metalScale, 0.2, 2.0) * 0.045;
-  let rawSpacing = rawRadius * 2.16;
-  let rawSpan = rawRadius * 2.0 + rawSpacing * (count - 1.0);
-  let fit = min(1.0, 1.42 / max(rawSpan, 0.01));
-  let radius = rawRadius * fit;
-  let spacing = rawSpacing * fit;
-  let rowStart = -0.5 * spacing * (count - 1.0);
-  let movement = clamp(u.chromaticShift, 0.0, 1.0) * 0.076 * evolution;
-  let rowAngle = u.metalAngle * 0.01745329252;
-  let rowY = clamp(u.metalOffset, -1.0, 1.0) * 0.42;
-  let glassFill = select(0.0, 1.0, u.glassEnabled > 0.5);
-  var color = mix(u.colorA.rgb, u.colorB.rgb, 0.5) * 0.003 * glassFill;
+  let pulse = 0.97 + 0.025 * sin(phase * 0.5)
+              + 0.012 * sin(phase * 1.5 + 1.2);
+  let scale = max(u.metalScale, 0.2) * pulse;
+  var q = glsRotate(p, u.metalAngle * 0.01745329252) / scale;
+  q.y = q.y - clamp(u.metalOffset, -1.0, 1.0) * 0.42;
+  q.x = q.x + sin(q.y * 3.1 - phase) * 0.018 * evolution;
 
-  for (var i: i32 = 0; i < 6; i = i + 1) {
-    let fi = f32(i);
-    if (fi < count) {
-      let agentPhase = phase - fi * 0.72;
-      let localCenter = vec2<f32>(
-        rowStart + fi * spacing + cos(agentPhase * 0.83) * movement * 0.36,
-        rowY + sin(agentPhase) * movement
-      );
-      let center = glsRotate(localCenter, rowAngle);
-      let agentRadius = radius * (1.0 + sin(agentPhase * 1.07) * 0.065 * evolution);
-      let disc = glsThinkingAgentDisc(p, center, agentRadius, fi, count, phase);
-      color = mix(color, disc.rgb, disc.a);
-    }
-  }
-  color = color / (vec3<f32>(1.0) + color * 0.14);
+  let softness = 0.018 + clamp(u.metalRoughness, 0.0, 1.0) * 0.055;
+  let count = clamp(u.bandDensity, 1.0, 6.0);
+  let trail0 = glsThinkingTrail(q + vec2<f32>(0.05, -0.02), 0.68, 0.82,
+                                softness, phase * 0.72, 1.0);
+  let trail1 = glsThinkingTrail(q + vec2<f32>(-0.04, 0.03), 0.78, 0.9,
+                                softness * 0.92, phase * 0.58 + 1.4, -1.0);
+  let trail2 = glsThinkingTrail(q + vec2<f32>(0.02, 0.05), 0.9, 0.76,
+                                softness * 1.08, phase * 0.46 + 2.7, 1.0);
+  let trail3 = glsThinkingTrail(q + vec2<f32>(-0.02, -0.04), 1.0, 0.86,
+                                softness * 1.18, phase * 0.37 + 4.1, -1.0);
+  let trail4 = glsThinkingTrail(q, 1.1, 0.72, softness * 1.26,
+                                phase * 0.31 + 5.0, 1.0);
+  let active1 = smoothstep(1.2, 1.8, count);
+  let active2 = smoothstep(2.2, 2.8, count);
+  let active3 = smoothstep(3.2, 3.8, count);
+  let active4 = smoothstep(4.2, 4.8, count);
+  var color = u.colorA.rgb * trail0
+            + u.colorB.rgb * trail1 * active1
+            + u.colorC.rgb * trail2 * active2
+            + u.colorD.rgb * trail3 * active3
+            + mix(u.colorA.rgb, u.colorD.rgb, 0.5) * trail4 * active4;
+
+  let coreMetric = length(q / vec2<f32>(0.62, 0.5));
+  let core = 1.0 - smoothstep(0.72, 1.08, coreMetric);
+  let coreHalo = exp(-coreMetric * coreMetric * 1.8);
+  let coreDepth = 0.52 + clamp(u.metalDepth, 0.0, 1.0) * 0.58;
+  let bodyColor = mix(mix(u.colorB.rgb, u.colorC.rgb, 0.48),
+                      u.highlightColor.rgb, 0.78);
+  color = color + bodyColor * core * coreDepth;
+  color = color + mix(u.colorA.rgb, u.colorD.rgb, 0.5) * coreHalo * 0.08;
+
+  let separation = 0.17 + 0.025 * sin(phase * 0.46);
+  let opening = 0.055 + clamp(u.metalStretch, 0.0, 1.0) * 0.105;
+  let leftTilt = 0.2 * sin(phase * 0.83) * evolution;
+  let rightTilt = 0.2 * sin(phase * 0.71 + 1.8) * evolution;
+  let leftDir = normalize(vec2<f32>(leftTilt, 1.0));
+  let rightDir = normalize(vec2<f32>(rightTilt, 1.0));
+  let leftCenter = vec2<f32>(-separation, 0.015 + sin(phase * 0.62) * 0.018 * evolution);
+  let rightCenter = vec2<f32>(separation, 0.015 + sin(phase * 0.57 + 2.1) * 0.018 * evolution);
+  let eyeRadius = 0.034 + softness * 0.18;
+  let leftEye = 1.0 - smoothstep(-0.012, 0.022,
+    glsCapsuleDistance(q, leftCenter - leftDir * opening,
+                      leftCenter + leftDir * opening, eyeRadius));
+  let rightEye = 1.0 - smoothstep(-0.012, 0.022,
+    glsCapsuleDistance(q, rightCenter - rightDir * opening,
+                      rightCenter + rightDir * opening, eyeRadius));
+  color = mix(color, u.canvasColor.rgb, max(leftEye, rightEye) * core * 0.96);
+  color = color / (vec3<f32>(1.0) + color * 0.2);
   return glsFinishEmissionFluid(color, p);
 }
 
@@ -1055,7 +1049,7 @@ fn glsPresetFluid(p: vec2<f32>, style: i32, t: f32) -> vec3<f32> {
   if (style == 22) { return glsChromaticMetalFluid(p, t); }
   if (style == 23) { return glsRefractiveBlobFluid(p, t); }
   if (style == 24) { return glsRainbowDiffusionFluid(p, t); }
-  if (style == 25) { return glsThinkingAgentsFluid(p, t); }
+  if (style == 25) { return glsThinkingTrailsFluid(p, t); }
   return glsFrostFluid(p, t);
 }
 
@@ -1280,10 +1274,7 @@ fn orbGlassLiquidAnim(uv01: vec2<f32>) -> vec4<f32> {
   let refractionWidth = 0.015 + 0.95 * clamp(u.shellMidAlpha, 0.0, 1.0);
   let refractionT = edgeDepth / max(refractionWidth, 0.001);
   let refractionProfile = pow(glsRefractionProfile(refractionT), 0.68);
-  // Discrete agent glyphs need a shorter lens throw than continuous fluids;
-  // otherwise the shell copies an entire glyph into both outer edges.
-  let refractionScale = select(1.6, 0.5, s == 25);
-  let refractionAmount = refractionScale * clamp(u.glassOpacity, 0.0, 1.0)
+  let refractionAmount = 1.6 * clamp(u.glassOpacity, 0.0, 1.0)
                          * refractionProfile;
   let refractedP = p - normal * refractionAmount;
   var fcol = vec3<f32>(0.0);

@@ -102,16 +102,8 @@ try {
   assert.match(metal, /metal::float3 glsRefractiveBlobFluid\(/, "Metal 折射软体流场缺失");
   assert.match(wgsl, /fn glsRainbowDiffusionFluid\(/, "WGSL 彩虹弥散流场缺失");
   assert.match(metal, /metal::float3 glsRainbowDiffusionFluid\(/, "Metal 彩虹弥散流场缺失");
-  assert.match(wgsl, /fn glsThinkingAgentsFluid\(/, "WGSL 代理思考流场缺失");
-  assert.match(metal, /metal::float3 glsThinkingAgentsFluid\(/, "Metal 代理思考流场缺失");
-  assert.match(wgsl, /fn glsThinkingTile\(/, "WGSL 代理思考像素纹理缺失");
-  assert.match(metal, /metal::float3 glsThinkingTile\(/, "Metal 代理思考像素纹理缺失");
-  assert.match(wgsl, /agentIndex < count - 1\.0/, "WGSL 最后一枚代理必须保留完整圆形");
-  assert.match(metal, /agentIndex < count - 1\.0/, "Metal 最后一枚代理必须保留完整圆形");
-  assert.doesNotMatch(wgsl, /glsCapsuleDistance|glsThinkingTrail\(/, "WGSL 仍包含旧眼睛轨迹实现");
-  assert.doesNotMatch(metal, /glsCapsuleDistance|glsThinkingTrail\(/, "Metal 仍包含旧眼睛轨迹实现");
-  assert.match(wgsl, /fanBreath[\s\S]*sin\(phase \* 1\.07 \+ 0\.8\)/, "WGSL 彩虹扇面缺少呼吸运动");
-  assert.match(metal, /fanBreath[\s\S]*metal::sin\(phase \* 1\.07 \+ 0\.8\)/, "Metal 彩虹扇面缺少呼吸运动");
+  assert.match(wgsl, /fn glsThinkingTrailsFluid\(/, "WGSL 思考轨迹流场缺失");
+  assert.match(metal, /metal::float3 glsThinkingTrailsFluid\(/, "Metal 思考轨迹流场缺失");
   const specialUniformKeys = [
     "bandDensity",
     "chromaticShift",
@@ -225,7 +217,6 @@ try {
     assert.ok(webShaderMatch, `${style}: Web shader 源码缺失`);
     assert.equal(JSON.parse(webShaderMatch[1]), shaderModule.orbShaderSource);
     assert.match(webCode, /<link rel="icon" href="data:," \/>/, `${style}: Web 图标声明缺失`);
-    assert.match(webCode, /#status\[hidden\] \{ display: none; \}/, `${style}: Web 状态层隐藏规则缺失`);
     const webScriptMatch = webCode.match(/<script type="module">([\s\S]*?)<\/script>/);
     assert.ok(webScriptMatch, `${style}: Web 运行脚本缺失`);
     assert.doesNotThrow(() => new Function(webScriptMatch[1]), `${style}: Web 运行脚本语法错误`);

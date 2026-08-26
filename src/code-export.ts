@@ -27,7 +27,6 @@ export function createWebExport(params: OrbParams): string {
     body { overflow: hidden; background: ${params.canvasColor}; }
     canvas { display: block; }
     #status { position: fixed; inset: 0; display: grid; place-items: center; color: white; font: 14px system-ui; }
-    #status[hidden] { display: none; }
   </style>
 </head>
 <body>
