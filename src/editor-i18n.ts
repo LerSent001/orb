@@ -39,6 +39,8 @@ export const styleLabels: Record<Locale, Record<StyleName, string>> = {
     violetEmber: "紫焰流核",
     refractiveBlob: "折射软体",
     chromaticMetal: "色差液态金属",
+    rainbowDiffusion: "彩虹弥散",
+    thinkingTrails: "思考轨迹",
   },
   en: {
     siri: "Siri Wave",
@@ -53,6 +55,65 @@ export const styleLabels: Record<Locale, Record<StyleName, string>> = {
     violetEmber: "Violet Ember",
     refractiveBlob: "Refractive Gel",
     chromaticMetal: "Chromatic Metal",
+    rainbowDiffusion: "Prismatic Bloom",
+    thinkingTrails: "Thinking Trails",
+  },
+};
+
+export const styleNumericLabels: Partial<
+  Record<StyleName, Record<Locale, Partial<Record<NumericKey, string>>>>
+> = {
+  rainbowDiffusion: {
+    zh: {
+      bandDensity: "光谱层数",
+      chromaticShift: "弥散宽度",
+      metalScale: "光束宽度",
+      metalStretch: "渐进模糊",
+      metalAngle: "光源角度",
+      metalOffset: "焦点位置",
+      metalPhase: "光谱相位",
+      metalEvolution: "棱镜扰动",
+      metalRoughness: "边缘柔光",
+      metalDepth: "折射深度",
+    },
+    en: {
+      bandDensity: "Spectrum Bands",
+      chromaticShift: "Dispersion Spread",
+      metalScale: "Beam Width",
+      metalStretch: "Progressive Blur",
+      metalAngle: "Light Angle",
+      metalOffset: "Focal Position",
+      metalPhase: "Spectrum Phase",
+      metalEvolution: "Prism Drift",
+      metalRoughness: "Edge Bloom",
+      metalDepth: "Refraction Depth",
+    },
+  },
+  thinkingTrails: {
+    zh: {
+      bandDensity: "轨迹数量",
+      chromaticShift: "拖尾长度",
+      metalScale: "图形缩放",
+      metalStretch: "眼睛开合",
+      metalAngle: "轨道倾角",
+      metalOffset: "垂直位置",
+      metalPhase: "思考相位",
+      metalEvolution: "形变幅度",
+      metalRoughness: "拖尾柔化",
+      metalDepth: "核心亮度",
+    },
+    en: {
+      bandDensity: "Trail Count",
+      chromaticShift: "Trail Length",
+      metalScale: "Glyph Scale",
+      metalStretch: "Eye Openness",
+      metalAngle: "Orbit Tilt",
+      metalOffset: "Vertical Position",
+      metalPhase: "Thinking Phase",
+      metalEvolution: "Morph Amount",
+      metalRoughness: "Trail Softness",
+      metalDepth: "Core Intensity",
+    },
   },
 };
 

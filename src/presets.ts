@@ -10,7 +10,9 @@ export type StyleName =
   | "blueDrop"
   | "violetEmber"
   | "refractiveBlob"
-  | "chromaticMetal";
+  | "chromaticMetal"
+  | "rainbowDiffusion"
+  | "thinkingTrails";
 
 export type OrbParams = {
   style: StyleName;
@@ -405,11 +407,83 @@ export const stylePresets: Record<StyleName, StylePreset> = {
     canvasColor: "#050606",
     glowColor: "#BDEFFF",
   },
+  rainbowDiffusion: {
+    ...basePreset,
+    speed: 0.72,
+    radius: 0.72,
+    contourDeform: 0.03,
+    bandDensity: 6,
+    chromaticShift: 0.82,
+    metalScale: 0.46,
+    metalStretch: 0.68,
+    metalAngle: -34,
+    metalOffset: -0.18,
+    metalPhase: 0.08,
+    metalEvolution: 0.58,
+    metalRoughness: 0.62,
+    metalDepth: 0.86,
+    shade: 0.04,
+    sheen: 0.16,
+    gloss: 0.62,
+    glassOpacity: 0.66,
+    shellMidAlpha: 0.3,
+    shellEdgeAlpha: 0.16,
+    exposure: 1.34,
+    colorA: "#F12CFF",
+    colorB: "#28D8FF",
+    colorC: "#DFFF54",
+    colorD: "#FF315D",
+    highlightColor: "#FFFFFF",
+    shellInner: "#F8FCFF",
+    shellMid: "#6EEBFF",
+    shellEdge: "#FF7AF2",
+    sheenColor: "#FFFFFF",
+    specColor: "#DFF8FF",
+    canvasColor: "#010104",
+    glowColor: "#9D5CFF",
+  },
+  thinkingTrails: {
+    ...basePreset,
+    speed: 0.86,
+    radius: 0.72,
+    contourDeform: 0.05,
+    bandDensity: 4,
+    chromaticShift: 0.72,
+    metalScale: 0.82,
+    metalStretch: 0.58,
+    metalAngle: -12,
+    metalOffset: 0.02,
+    metalPhase: 0.12,
+    metalEvolution: 0.82,
+    metalRoughness: 0.44,
+    metalDepth: 0.84,
+    shade: 0.03,
+    sheen: 0.14,
+    gloss: 0.42,
+    glassOpacity: 0.58,
+    shellMidAlpha: 0.26,
+    shellEdgeAlpha: 0.14,
+    exposure: 1.24,
+    colorA: "#38B6FF",
+    colorB: "#6AF2E7",
+    colorC: "#8B62FF",
+    colorD: "#F25AD9",
+    highlightColor: "#F8FBFF",
+    shellInner: "#F8FCFF",
+    shellMid: "#75DFFF",
+    shellEdge: "#B080FF",
+    sheenColor: "#FFFFFF",
+    specColor: "#DCEBFF",
+    canvasColor: "#010207",
+    glowColor: "#7F6DFF",
+  },
 };
 
 export const styleNames: readonly StyleName[] = [
   "siri",
   "voiceWave",
+  "rainbowDiffusion",
+  "thinkingTrails",
   "blueDrop",
   "violetEmber",
   "refractiveBlob",
@@ -435,6 +509,8 @@ export const styleFlowIndexes: Record<StyleName, number> = {
   violetEmber: 21,
   refractiveBlob: 23,
   chromaticMetal: 22,
+  rainbowDiffusion: 24,
+  thinkingTrails: 25,
 };
 
 export const effectDefaults: OrbParams = {

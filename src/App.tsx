@@ -37,15 +37,18 @@ import frostPreviewUrl from "./assets/presets/frost.png";
 import opalPreviewUrl from "./assets/presets/opal.png";
 import plasmaPreviewUrl from "./assets/presets/plasma.png";
 import refractiveBlobPreviewUrl from "./assets/presets/refractiveBlob.png";
+import rainbowDiffusionPreviewUrl from "./assets/presets/rainbowDiffusion.png";
 import siriPreviewUrl from "./assets/presets/siri.png";
 import spectrumPreviewUrl from "./assets/presets/spectrum.png";
 import violetEmberPreviewUrl from "./assets/presets/violetEmber.png";
 import voiceWavePreviewUrl from "./assets/presets/voiceWave.png";
+import thinkingTrailsPreviewUrl from "./assets/presets/thinkingTrails.png";
 import { createSwiftExport, createWebExport } from "./code-export";
 import {
   colorLabels,
   localeOptions,
   numericLabels,
+  styleNumericLabels,
   styleLabels,
   uiCopy,
   type ColorKey,
@@ -81,12 +84,16 @@ const stylePreviewUrls: Record<StyleName, string> = {
   violetEmber: violetEmberPreviewUrl,
   refractiveBlob: refractiveBlobPreviewUrl,
   chromaticMetal: chromaticMetalPreviewUrl,
+  rainbowDiffusion: rainbowDiffusionPreviewUrl,
+  thinkingTrails: thinkingTrailsPreviewUrl,
 };
 const compactPreviewStyles = new Set<StyleName>([
   "blueDrop",
   "violetEmber",
   "refractiveBlob",
   "chromaticMetal",
+  "rainbowDiffusion",
+  "thinkingTrails",
 ]);
 
 type PreviewMode = "orb" | "scene";
@@ -124,9 +131,14 @@ const sharpStyles: readonly StyleName[] = [
   "refractiveBlob",
 ];
 const standardShapeStyles = styleNames.filter(
-  (style) => style !== "chromaticMetal",
+  (style) => !["chromaticMetal", "rainbowDiffusion", "thinkingTrails"].includes(style),
 );
-const chromaticMetalStyles: readonly StyleName[] = ["chromaticMetal"];
+const contourShapeStyles = styleNames.filter((style) => style !== "chromaticMetal");
+const specialFieldStyles: readonly StyleName[] = [
+  "chromaticMetal",
+  "rainbowDiffusion",
+  "thinkingTrails",
+];
 
 const numericSpecs: readonly NumericSpec[] = [
   { key: "speed", min: 0, max: 3, step: 0.01 },
@@ -136,7 +148,7 @@ const numericSpecs: readonly NumericSpec[] = [
     min: 0,
     max: 1,
     step: 0.01,
-    enabledStyles: standardShapeStyles,
+    enabledStyles: contourShapeStyles,
   },
   {
     key: "zoom",
@@ -159,70 +171,70 @@ const numericSpecs: readonly NumericSpec[] = [
     min: 1,
     max: 6,
     step: 0.1,
-    enabledStyles: chromaticMetalStyles,
+    enabledStyles: specialFieldStyles,
   },
   {
     key: "metalDepth",
     min: 0,
     max: 1,
     step: 0.01,
-    enabledStyles: chromaticMetalStyles,
+    enabledStyles: specialFieldStyles,
   },
   {
     key: "metalRoughness",
     min: 0,
     max: 1,
     step: 0.01,
-    enabledStyles: chromaticMetalStyles,
+    enabledStyles: specialFieldStyles,
   },
   {
     key: "chromaticShift",
     min: 0,
     max: 1,
     step: 0.01,
-    enabledStyles: chromaticMetalStyles,
+    enabledStyles: specialFieldStyles,
   },
   {
     key: "metalScale",
     min: 0.2,
     max: 2,
     step: 0.01,
-    enabledStyles: chromaticMetalStyles,
+    enabledStyles: specialFieldStyles,
   },
   {
     key: "metalStretch",
     min: 0,
     max: 1,
     step: 0.01,
-    enabledStyles: chromaticMetalStyles,
+    enabledStyles: specialFieldStyles,
   },
   {
     key: "metalAngle",
     min: -180,
     max: 180,
     step: 1,
-    enabledStyles: chromaticMetalStyles,
+    enabledStyles: specialFieldStyles,
   },
   {
     key: "metalOffset",
     min: -1,
     max: 1,
     step: 0.01,
-    enabledStyles: chromaticMetalStyles,
+    enabledStyles: specialFieldStyles,
   },
   {
     key: "metalPhase",
     min: 0,
     max: 1,
     step: 0.01,
-    enabledStyles: chromaticMetalStyles,
+    enabledStyles: specialFieldStyles,
   },
   {
     key: "metalEvolution",
     min: 0,
     max: 2,
     step: 0.02,
-    enabledStyles: chromaticMetalStyles,
+    enabledStyles: specialFieldStyles,
   },
   { key: "shade", min: 0, max: 1.5, step: 0.01 },
   { key: "exposure", min: 0.2, max: 3, step: 0.02 },
@@ -545,14 +557,17 @@ export function App(): React.JSX.Element {
     if (!spec) throw new Error(`Missing slider configuration: ${key}`);
     if (spec.enabledStyles && !spec.enabledStyles.includes(params.style)) return null;
 
+    const label = styleNumericLabels[params.style]?.[locale]?.[key]
+      ?? numericLabels[locale][key];
+
     return (
       <Slider
         baseValue={stylePresets[params.style][key]}
-        editValueLabel={copy.editValue(numericLabels[locale][key])}
+        editValueLabel={copy.editValue(label)}
         key={key}
         max={spec.max}
         min={spec.min}
-        name={numericLabels[locale][key]}
+        name={label}
         onValueChange={(value) => setParam(key, value)}
         showFill
         step={spec.step}

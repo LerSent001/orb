@@ -3,9 +3,10 @@
 // The local presets use independent spatial models for Siri-like sheets,
 // symmetric colour waves, aurora curtains, frost flow, neural interference,
 // liquid chrome, opal interference, a voice membrane, a blue liquid drop, and
-// a violet molten core, plus a chromatic brushed-metal field. The legacy liquid
-// bank remains below for compatibility with older shared shader
-// code, but is not exposed as an editor preset.
+// a violet molten core, a chromatic brushed-metal field, prismatic diffusion,
+// and an expressive thinking glyph. The legacy liquid bank remains below for
+// compatibility with older shared shader code, but is not exposed as an editor
+// preset.
 //
 // When enabled, the shell uses a signed-distance refraction profile around the
 // boundary, asymmetric spectral separation, and two directional edge lights.
@@ -707,6 +708,158 @@ fn glsChromaticMetalFluid(p: vec2<f32>, t: f32) -> vec3<f32> {
   return glsFinishPresetFluid(color, p);
 }
 
+fn glsLineGlow(distance: f32, width: f32) -> f32 {
+  let safeWidth = max(width, 0.001);
+  return exp(-(distance * distance) / (safeWidth * safeWidth));
+}
+
+fn glsPrismaticBand(q: vec2<f32>, forward: f32, spread: f32, offset: f32,
+                    phase: f32, width: f32) -> vec2<f32> {
+  let bend = offset * spread * forward;
+  let drift = sin(q.x * 3.4 + phase + offset * 2.7)
+              * 0.018 * clamp(u.metalEvolution, 0.0, 2.0);
+  let distance = q.y - bend - drift;
+  let progressive = 1.0 + max(forward, 0.0)
+                    * (0.7 + clamp(u.metalStretch, 0.0, 1.0) * 2.8);
+  let core = glsLineGlow(distance, width * progressive);
+  let bloom = glsLineGlow(
+    distance,
+    width * progressive * (2.2 + clamp(u.metalRoughness, 0.0, 1.0) * 3.8)
+  );
+  return vec2<f32>(core, bloom);
+}
+
+fn glsRainbowDiffusionFluid(p: vec2<f32>, t: f32) -> vec3<f32> {
+  // A white incident beam converges at a moving focal point, then separates
+  // into independently blurred spectral bands. The fan is sampled by the
+  // shared glass compositor, so the shell bends the bands at its edge.
+  let angle = u.metalAngle * 0.01745329252;
+  var q = glsRotate(p, angle);
+  let phase = t * 0.34 + u.metalPhase * 6.28318530718;
+  q.y = q.y + sin(q.x * 2.6 - phase) * 0.012
+                * clamp(u.metalEvolution, 0.0, 2.0);
+  let focus = clamp(u.metalOffset, -1.0, 1.0) * 0.55;
+  let x = q.x - focus;
+  let forward = max(x + 0.04, 0.0);
+  let separation = 0.11 + clamp(u.chromaticShift, 0.0, 1.0) * 0.42;
+  let width = 0.009 + clamp(u.metalScale, 0.2, 2.0) * 0.028;
+  let bandCount = clamp(u.bandDensity, 1.0, 6.0);
+  let depth = 0.48 + clamp(u.metalDepth, 0.0, 1.0) * 0.92;
+
+  let b0 = glsPrismaticBand(q, forward, separation, -1.0, phase, width);
+  let b1 = glsPrismaticBand(q, forward, separation, -0.67, phase, width);
+  let b2 = glsPrismaticBand(q, forward, separation, -0.34, phase, width);
+  let b3 = glsPrismaticBand(q, forward, separation, 0.0, phase, width);
+  let b4 = glsPrismaticBand(q, forward, separation, 0.34, phase, width);
+  let b5 = glsPrismaticBand(q, forward, separation, 0.67, phase, width);
+  let b6 = glsPrismaticBand(q, forward, separation, 1.0, phase, width);
+  let a0 = smoothstep(5.2, 5.8, bandCount);
+  let a1 = smoothstep(4.2, 4.8, bandCount);
+  let a2 = smoothstep(2.2, 2.8, bandCount);
+  let spectral = u.colorA.rgb * (b0.x + b0.y * 0.26) * a0
+               + mix(u.colorA.rgb, u.colorB.rgb, 0.5) * (b1.x + b1.y * 0.24) * a1
+               + u.colorB.rgb * (b2.x + b2.y * 0.22) * a2
+               + mix(u.colorB.rgb, u.colorC.rgb, 0.5) * (b3.x + b3.y * 0.2)
+               + u.colorC.rgb * (b4.x + b4.y * 0.22) * a2
+               + mix(u.colorC.rgb, u.colorD.rgb, 0.5) * (b5.x + b5.y * 0.24) * a1
+               + u.colorD.rgb * (b6.x + b6.y * 0.26) * a0;
+  let spectralGate = smoothstep(-0.1, 0.16, x);
+
+  let incidentWidth = width * (0.72 + 0.25 * u.metalRoughness);
+  let incident = glsLineGlow(q.y, incidentWidth)
+                 * (1.0 - smoothstep(-0.08, 0.16, x));
+  let incidentBloom = glsLineGlow(q.y, incidentWidth * 4.2)
+                      * (1.0 - smoothstep(-0.16, 0.24, x));
+  let focusGlow = exp(-dot(vec2<f32>(x * 2.4, q.y * 3.4),
+                           vec2<f32>(x * 2.4, q.y * 3.4)) * 6.0);
+  let glassFill = select(0.0, 1.0, u.glassEnabled > 0.5);
+  var color = mix(u.colorA.rgb, u.colorD.rgb, 0.5) * 0.004 * glassFill;
+  color = color + spectral * spectralGate * depth * 0.48;
+  color = color + u.highlightColor.rgb
+          * (incident * 0.92 + incidentBloom * 0.12 + focusGlow * 0.2 * depth);
+  color = color / (vec3<f32>(1.0) + color * 0.24);
+  return glsFinishEmissionFluid(color, p);
+}
+
+fn glsCapsuleDistance(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>, radius: f32) -> f32 {
+  let pa = p - a;
+  let ba = b - a;
+  let h = clamp(dot(pa, ba) / max(dot(ba, ba), 0.0001), 0.0, 1.0);
+  return length(pa - ba * h) - radius;
+}
+
+fn glsThinkingTrail(q: vec2<f32>, radius: f32, aspect: f32, width: f32,
+                    phase: f32, direction: f32) -> f32 {
+  let orbit = vec2<f32>(q.x * aspect, q.y / aspect);
+  let ringDistance = abs(length(orbit) - radius);
+  let angle = atan2(orbit.y, orbit.x);
+  let arcSignal = sin(angle * direction - phase);
+  let arc = smoothstep(0.68 - clamp(u.chromaticShift, 0.0, 1.0) * 1.28,
+                       0.82, arcSignal);
+  return glsLineGlow(ringDistance, width) * arc;
+}
+
+fn glsThinkingTrailsFluid(p: vec2<f32>, t: f32) -> vec3<f32> {
+  let phase = t * 0.78 + u.metalPhase * 6.28318530718;
+  let evolution = clamp(u.metalEvolution, 0.0, 2.0);
+  let pulse = 0.97 + 0.025 * sin(phase * 0.5)
+              + 0.012 * sin(phase * 1.5 + 1.2);
+  let scale = max(u.metalScale, 0.2) * pulse;
+  var q = glsRotate(p, u.metalAngle * 0.01745329252) / scale;
+  q.y = q.y - clamp(u.metalOffset, -1.0, 1.0) * 0.42;
+  q.x = q.x + sin(q.y * 3.1 - phase) * 0.018 * evolution;
+
+  let softness = 0.018 + clamp(u.metalRoughness, 0.0, 1.0) * 0.055;
+  let count = clamp(u.bandDensity, 1.0, 6.0);
+  let trail0 = glsThinkingTrail(q + vec2<f32>(0.05, -0.02), 0.68, 0.82,
+                                softness, phase * 0.72, 1.0);
+  let trail1 = glsThinkingTrail(q + vec2<f32>(-0.04, 0.03), 0.78, 0.9,
+                                softness * 0.92, phase * 0.58 + 1.4, -1.0);
+  let trail2 = glsThinkingTrail(q + vec2<f32>(0.02, 0.05), 0.9, 0.76,
+                                softness * 1.08, phase * 0.46 + 2.7, 1.0);
+  let trail3 = glsThinkingTrail(q + vec2<f32>(-0.02, -0.04), 1.0, 0.86,
+                                softness * 1.18, phase * 0.37 + 4.1, -1.0);
+  let trail4 = glsThinkingTrail(q, 1.1, 0.72, softness * 1.26,
+                                phase * 0.31 + 5.0, 1.0);
+  let active1 = smoothstep(1.2, 1.8, count);
+  let active2 = smoothstep(2.2, 2.8, count);
+  let active3 = smoothstep(3.2, 3.8, count);
+  let active4 = smoothstep(4.2, 4.8, count);
+  var color = u.colorA.rgb * trail0
+            + u.colorB.rgb * trail1 * active1
+            + u.colorC.rgb * trail2 * active2
+            + u.colorD.rgb * trail3 * active3
+            + mix(u.colorA.rgb, u.colorD.rgb, 0.5) * trail4 * active4;
+
+  let coreMetric = length(q / vec2<f32>(0.62, 0.5));
+  let core = 1.0 - smoothstep(0.72, 1.08, coreMetric);
+  let coreHalo = exp(-coreMetric * coreMetric * 1.8);
+  let coreDepth = 0.52 + clamp(u.metalDepth, 0.0, 1.0) * 0.58;
+  let bodyColor = mix(mix(u.colorB.rgb, u.colorC.rgb, 0.48),
+                      u.highlightColor.rgb, 0.78);
+  color = color + bodyColor * core * coreDepth;
+  color = color + mix(u.colorA.rgb, u.colorD.rgb, 0.5) * coreHalo * 0.08;
+
+  let separation = 0.17 + 0.025 * sin(phase * 0.46);
+  let opening = 0.055 + clamp(u.metalStretch, 0.0, 1.0) * 0.105;
+  let leftTilt = 0.2 * sin(phase * 0.83) * evolution;
+  let rightTilt = 0.2 * sin(phase * 0.71 + 1.8) * evolution;
+  let leftDir = normalize(vec2<f32>(leftTilt, 1.0));
+  let rightDir = normalize(vec2<f32>(rightTilt, 1.0));
+  let leftCenter = vec2<f32>(-separation, 0.015 + sin(phase * 0.62) * 0.018 * evolution);
+  let rightCenter = vec2<f32>(separation, 0.015 + sin(phase * 0.57 + 2.1) * 0.018 * evolution);
+  let eyeRadius = 0.034 + softness * 0.18;
+  let leftEye = 1.0 - smoothstep(-0.012, 0.022,
+    glsCapsuleDistance(q, leftCenter - leftDir * opening,
+                      leftCenter + leftDir * opening, eyeRadius));
+  let rightEye = 1.0 - smoothstep(-0.012, 0.022,
+    glsCapsuleDistance(q, rightCenter - rightDir * opening,
+                      rightCenter + rightDir * opening, eyeRadius));
+  color = mix(color, u.canvasColor.rgb, max(leftEye, rightEye) * core * 0.96);
+  color = color / (vec3<f32>(1.0) + color * 0.2);
+  return glsFinishEmissionFluid(color, p);
+}
+
 fn glsOpalFluid(p: vec2<f32>, t: f32) -> vec3<f32> {
   let q = p * (0.8 + u.zoom * 0.64);
   let complexity = 0.76 + u.warp * 0.085;
@@ -895,6 +1048,8 @@ fn glsPresetFluid(p: vec2<f32>, style: i32, t: f32) -> vec3<f32> {
   if (style == 21) { return glsVioletEmberFluid(p, t); }
   if (style == 22) { return glsChromaticMetalFluid(p, t); }
   if (style == 23) { return glsRefractiveBlobFluid(p, t); }
+  if (style == 24) { return glsRainbowDiffusionFluid(p, t); }
+  if (style == 25) { return glsThinkingTrailsFluid(p, t); }
   return glsFrostFluid(p, t);
 }
 
@@ -1065,7 +1220,8 @@ fn orbGlassLiquidAnim(uv01: vec2<f32>) -> vec4<f32> {
   let rad = max(u.radius, 0.05);
   let t = u.time * u.speed;
   let s = i32(u.style + 0.5);
-  let emissionOnly = u.glassEnabled <= 0.5 && (s == 9 || s == 14);
+  let emissionOnly = u.glassEnabled <= 0.5
+                     && (s == 9 || s == 14 || s == 24 || s == 25);
   let contourRad = rad * glsContourScale(uv, t, u.contourDeform);
 
   // Nothing on this pixel — and here that is the whole fluid and the whole

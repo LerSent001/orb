@@ -938,6 +938,204 @@ metal::float3 glsChromaticMetalFluid(
     return glsFinishPresetFluid(color, p, u);
 }
 
+float glsLineGlow(float distance, float width) {
+    float safeWidth = metal::max(width, 0.001);
+    return metal::exp(-(distance * distance) / (safeWidth * safeWidth));
+}
+
+metal::float2 glsPrismaticBand(
+    metal::float2 q,
+    float forward,
+    float spread,
+    float offset,
+    float phase,
+    float width,
+    constant Uniforms& u
+) {
+    float bend = offset * spread * forward;
+    float drift = metal::sin(q.x * 3.4 + phase + offset * 2.7)
+                * 0.018 * metal::clamp(u.metalEvolution, 0.0, 2.0);
+    float distance = q.y - bend - drift;
+    float progressive = 1.0 + metal::max(forward, 0.0)
+                      * (0.7 + metal::clamp(u.metalStretch, 0.0, 1.0) * 2.8);
+    float core = glsLineGlow(distance, width * progressive);
+    float bloom = glsLineGlow(
+        distance,
+        width * progressive
+            * (2.2 + metal::clamp(u.metalRoughness, 0.0, 1.0) * 3.8)
+    );
+    return metal::float2(core, bloom);
+}
+
+metal::float3 glsRainbowDiffusionFluid(
+    metal::float2 p,
+    float t,
+    constant Uniforms& u
+) {
+    float angle = u.metalAngle * 0.01745329252;
+    metal::float2 q = glsRotate(p, angle);
+    float phase = t * 0.34 + u.metalPhase * 6.28318530718;
+    q.y += metal::sin(q.x * 2.6 - phase) * 0.012
+         * metal::clamp(u.metalEvolution, 0.0, 2.0);
+    float focus = metal::clamp(u.metalOffset, -1.0, 1.0) * 0.55;
+    float x = q.x - focus;
+    float forward = metal::max(x + 0.04, 0.0);
+    float separation = 0.11 + metal::clamp(u.chromaticShift, 0.0, 1.0) * 0.42;
+    float width = 0.009 + metal::clamp(u.metalScale, 0.2, 2.0) * 0.028;
+    float bandCount = metal::clamp(u.bandDensity, 1.0, 6.0);
+    float depth = 0.48 + metal::clamp(u.metalDepth, 0.0, 1.0) * 0.92;
+
+    metal::float2 b0 = glsPrismaticBand(q, forward, separation, -1.0, phase, width, u);
+    metal::float2 b1 = glsPrismaticBand(q, forward, separation, -0.67, phase, width, u);
+    metal::float2 b2 = glsPrismaticBand(q, forward, separation, -0.34, phase, width, u);
+    metal::float2 b3 = glsPrismaticBand(q, forward, separation, 0.0, phase, width, u);
+    metal::float2 b4 = glsPrismaticBand(q, forward, separation, 0.34, phase, width, u);
+    metal::float2 b5 = glsPrismaticBand(q, forward, separation, 0.67, phase, width, u);
+    metal::float2 b6 = glsPrismaticBand(q, forward, separation, 1.0, phase, width, u);
+    float a0 = metal::smoothstep(5.2, 5.8, bandCount);
+    float a1 = metal::smoothstep(4.2, 4.8, bandCount);
+    float a2 = metal::smoothstep(2.2, 2.8, bandCount);
+    metal::float3 spectral = u.colorA.xyz * (b0.x + b0.y * 0.26) * a0
+        + metal::mix(u.colorA.xyz, u.colorB.xyz, 0.5) * (b1.x + b1.y * 0.24) * a1
+        + u.colorB.xyz * (b2.x + b2.y * 0.22) * a2
+        + metal::mix(u.colorB.xyz, u.colorC.xyz, 0.5) * (b3.x + b3.y * 0.2)
+        + u.colorC.xyz * (b4.x + b4.y * 0.22) * a2
+        + metal::mix(u.colorC.xyz, u.colorD.xyz, 0.5) * (b5.x + b5.y * 0.24) * a1
+        + u.colorD.xyz * (b6.x + b6.y * 0.26) * a0;
+    float spectralGate = metal::smoothstep(-0.1, 0.16, x);
+
+    float incidentWidth = width * (0.72 + 0.25 * u.metalRoughness);
+    float incident = glsLineGlow(q.y, incidentWidth)
+                   * (1.0 - metal::smoothstep(-0.08, 0.16, x));
+    float incidentBloom = glsLineGlow(q.y, incidentWidth * 4.2)
+                        * (1.0 - metal::smoothstep(-0.16, 0.24, x));
+    metal::float2 focusP = metal::float2(x * 2.4, q.y * 3.4);
+    float focusGlow = metal::exp(-metal::dot(focusP, focusP) * 6.0);
+    float glassFill = u.glassEnabled > 0.5 ? 1.0 : 0.0;
+    metal::float3 color = metal::mix(u.colorA.xyz, u.colorD.xyz, 0.5)
+                        * 0.004 * glassFill;
+    color += spectral * spectralGate * depth * 0.48;
+    color += u.highlightColor.xyz
+           * (incident * 0.92 + incidentBloom * 0.12 + focusGlow * 0.2 * depth);
+    color /= metal::float3(1.0) + color * 0.24;
+    return glsFinishEmissionFluid(color, p, u);
+}
+
+float glsCapsuleDistance(
+    metal::float2 p,
+    metal::float2 a,
+    metal::float2 b,
+    float radius
+) {
+    metal::float2 pa = p - a;
+    metal::float2 ba = b - a;
+    float h = metal::clamp(metal::dot(pa, ba) / metal::max(metal::dot(ba, ba), 0.0001),
+                           0.0, 1.0);
+    return metal::length(pa - ba * h) - radius;
+}
+
+float glsThinkingTrail(
+    metal::float2 q,
+    float radius,
+    float aspect,
+    float width,
+    float phase,
+    float direction,
+    constant Uniforms& u
+) {
+    metal::float2 orbit = metal::float2(q.x * aspect, q.y / aspect);
+    float ringDistance = metal::abs(metal::length(orbit) - radius);
+    float angle = metal::atan2(orbit.y, orbit.x);
+    float arcSignal = metal::sin(angle * direction - phase);
+    float arc = metal::smoothstep(
+        0.68 - metal::clamp(u.chromaticShift, 0.0, 1.0) * 1.28,
+        0.82,
+        arcSignal
+    );
+    return glsLineGlow(ringDistance, width) * arc;
+}
+
+metal::float3 glsThinkingTrailsFluid(
+    metal::float2 p,
+    float t,
+    constant Uniforms& u
+) {
+    float phase = t * 0.78 + u.metalPhase * 6.28318530718;
+    float evolution = metal::clamp(u.metalEvolution, 0.0, 2.0);
+    float pulse = 0.97 + 0.025 * metal::sin(phase * 0.5)
+                + 0.012 * metal::sin(phase * 1.5 + 1.2);
+    float scale = metal::max(u.metalScale, 0.2) * pulse;
+    metal::float2 q = glsRotate(p, u.metalAngle * 0.01745329252) / scale;
+    q.y -= metal::clamp(u.metalOffset, -1.0, 1.0) * 0.42;
+    q.x += metal::sin(q.y * 3.1 - phase) * 0.018 * evolution;
+
+    float softness = 0.018 + metal::clamp(u.metalRoughness, 0.0, 1.0) * 0.055;
+    float count = metal::clamp(u.bandDensity, 1.0, 6.0);
+    float trail0 = glsThinkingTrail(q + metal::float2(0.05, -0.02), 0.68, 0.82,
+                                    softness, phase * 0.72, 1.0, u);
+    float trail1 = glsThinkingTrail(q + metal::float2(-0.04, 0.03), 0.78, 0.9,
+                                    softness * 0.92, phase * 0.58 + 1.4, -1.0, u);
+    float trail2 = glsThinkingTrail(q + metal::float2(0.02, 0.05), 0.9, 0.76,
+                                    softness * 1.08, phase * 0.46 + 2.7, 1.0, u);
+    float trail3 = glsThinkingTrail(q + metal::float2(-0.02, -0.04), 1.0, 0.86,
+                                    softness * 1.18, phase * 0.37 + 4.1, -1.0, u);
+    float trail4 = glsThinkingTrail(q, 1.1, 0.72, softness * 1.26,
+                                    phase * 0.31 + 5.0, 1.0, u);
+    float active1 = metal::smoothstep(1.2, 1.8, count);
+    float active2 = metal::smoothstep(2.2, 2.8, count);
+    float active3 = metal::smoothstep(3.2, 3.8, count);
+    float active4 = metal::smoothstep(4.2, 4.8, count);
+    metal::float3 color = u.colorA.xyz * trail0
+        + u.colorB.xyz * trail1 * active1
+        + u.colorC.xyz * trail2 * active2
+        + u.colorD.xyz * trail3 * active3
+        + metal::mix(u.colorA.xyz, u.colorD.xyz, 0.5) * trail4 * active4;
+
+    float coreMetric = metal::length(q / metal::float2(0.62, 0.5));
+    float core = 1.0 - metal::smoothstep(0.72, 1.08, coreMetric);
+    float coreHalo = metal::exp(-coreMetric * coreMetric * 1.8);
+    float coreDepth = 0.52 + metal::clamp(u.metalDepth, 0.0, 1.0) * 0.58;
+    metal::float3 bodyColor = metal::mix(
+        metal::mix(u.colorB.xyz, u.colorC.xyz, 0.48),
+        u.highlightColor.xyz,
+        0.78
+    );
+    color += bodyColor * core * coreDepth;
+    color += metal::mix(u.colorA.xyz, u.colorD.xyz, 0.5) * coreHalo * 0.08;
+
+    float separation = 0.17 + 0.025 * metal::sin(phase * 0.46);
+    float opening = 0.055 + metal::clamp(u.metalStretch, 0.0, 1.0) * 0.105;
+    float leftTilt = 0.2 * metal::sin(phase * 0.83) * evolution;
+    float rightTilt = 0.2 * metal::sin(phase * 0.71 + 1.8) * evolution;
+    metal::float2 leftDir = metal::normalize(metal::float2(leftTilt, 1.0));
+    metal::float2 rightDir = metal::normalize(metal::float2(rightTilt, 1.0));
+    metal::float2 leftCenter = metal::float2(
+        -separation,
+        0.015 + metal::sin(phase * 0.62) * 0.018 * evolution
+    );
+    metal::float2 rightCenter = metal::float2(
+        separation,
+        0.015 + metal::sin(phase * 0.57 + 2.1) * 0.018 * evolution
+    );
+    float eyeRadius = 0.034 + softness * 0.18;
+    float leftEye = 1.0 - metal::smoothstep(
+        -0.012,
+        0.022,
+        glsCapsuleDistance(q, leftCenter - leftDir * opening,
+                           leftCenter + leftDir * opening, eyeRadius)
+    );
+    float rightEye = 1.0 - metal::smoothstep(
+        -0.012,
+        0.022,
+        glsCapsuleDistance(q, rightCenter - rightDir * opening,
+                           rightCenter + rightDir * opening, eyeRadius)
+    );
+    color = metal::mix(color, u.canvasColor.xyz,
+                       metal::max(leftEye, rightEye) * core * 0.96);
+    color /= metal::float3(1.0) + color * 0.2;
+    return glsFinishEmissionFluid(color, p, u);
+}
+
 metal::float3 glsOpalFluid(
     metal::float2 p_13,
     float t_10,
@@ -1258,6 +1456,12 @@ metal::float3 glsPresetFluid(
     if (style == 23) {
         return glsRefractiveBlobFluid(p_16, t_13, u);
     }
+    if (style == 24) {
+        return glsRainbowDiffusionFluid(p_16, t_13, u);
+    }
+    if (style == 25) {
+        return glsThinkingTrailsFluid(p_16, t_13, u);
+    }
     metal::float3 _e27 = glsFrostFluid(p_16, t_13, u);
     return _e27;
 }
@@ -1494,7 +1698,8 @@ metal::float4 orbGlassLiquidAnim(
     float rad = metal::max(u.radius, 0.05);
     float t = u.time * u.speed;
     int s = naga_f2i32(u.style + 0.5);
-    bool emissionOnly = u.glassEnabled <= 0.5 && (s == 9 || s == 14);
+    bool emissionOnly = u.glassEnabled <= 0.5
+                     && (s == 9 || s == 14 || s == 24 || s == 25);
     float contourRad = rad * glsContourScale(uv, t, u.contourDeform, u);
 
     if (metal::length(uv) > contourRad * (1.01 + mfEdgeD(u.edgeSoftness))) {
