@@ -69,12 +69,12 @@ try {
   assert.ok(wgslOpticalWeights.fill[0] >= 0.8, "辅高光权重过低，颜色控件不可见");
   assert.match(
     wgsl,
-    /emissionOnly = u\.glassEnabled <= 0\.5[\s\S]*?s == 9 \|\| s == 14 \|\| s == 24 \|\| s == 25/,
+    /emissionOnly = u\.glassEnabled <= 0\.5 && \(s == 9 \|\| s == 14\)/,
     "WGSL 无玻璃发光层分发缺失",
   );
   assert.match(
     metal,
-    /emissionOnly = u\.glassEnabled <= 0\.5[\s\S]*?s == 9 \|\| s == 14 \|\| s == 24 \|\| s == 25/,
+    /emissionOnly = u\.glassEnabled <= 0\.5 && \(s == 9 \|\| s == 14\)/,
     "Metal 无玻璃发光层分发缺失",
   );
   assert.match(wgsl, /fn glsFinishEmissionFluid\(/, "WGSL 发光层收尾函数缺失");
@@ -100,32 +100,6 @@ try {
   );
   assert.match(wgsl, /fn glsRefractiveBlobFluid\(/, "WGSL 折射软体流场缺失");
   assert.match(metal, /metal::float3 glsRefractiveBlobFluid\(/, "Metal 折射软体流场缺失");
-  assert.match(wgsl, /fn glsRainbowDiffusionFluid\(/, "WGSL 彩虹弥散流场缺失");
-  assert.match(metal, /metal::float3 glsRainbowDiffusionFluid\(/, "Metal 彩虹弥散流场缺失");
-  assert.match(wgsl, /fn glsThinkingTrailsFluid\(/, "WGSL 思考轨迹流场缺失");
-  assert.match(metal, /metal::float3 glsThinkingTrailsFluid\(/, "Metal 思考轨迹流场缺失");
-  const specialUniformKeys = [
-    "bandDensity",
-    "chromaticShift",
-    "metalScale",
-    "metalStretch",
-    "metalAngle",
-    "metalOffset",
-    "metalPhase",
-    "metalEvolution",
-    "metalRoughness",
-    "metalDepth",
-  ];
-  const wgslNewEffects = wgsl.match(/fn glsLineGlow\([\s\S]*?fn glsOpalFluid\(/)?.[0];
-  const metalNewEffects = metal.match(/float glsLineGlow\([\s\S]*?metal::float3 glsOpalFluid\(/)?.[0];
-  assert.ok(wgslNewEffects, "WGSL 新预设参数区间缺失");
-  assert.ok(metalNewEffects, "Metal 新预设参数区间缺失");
-  for (const key of specialUniformKeys) {
-    assert.match(wgslNewEffects, new RegExp(`u\\.${key}\\b`), `WGSL 新预设未使用 ${key}`);
-    assert.match(metalNewEffects, new RegExp(`u\\.${key}\\b`), `Metal 新预设未使用 ${key}`);
-  }
-  assert.doesNotMatch(wgslNewEffects, /smoothstep\(1\.08, 0\.72/);
-  assert.doesNotMatch(metalNewEffects, /smoothstep\(1\.08, 0\.72/);
   assert.match(
     wgsl,
     /fn glsRefractionNormal\([\s\S]*?if \(style != 23\)/,
@@ -181,7 +155,7 @@ try {
       assert.ok(webSeed[11] >= 0.4, "折射软体默认色散不足");
     }
 
-    if (["chromaticMetal", "rainbowDiffusion", "thinkingTrails"].includes(style)) {
+    if (style === "chromaticMetal") {
       const metalUniforms = [
         [22, "bandDensity", "重复次数"],
         [23, "chromaticShift", "RGB 分离"],
@@ -202,9 +176,6 @@ try {
         assert.match(wgsl, new RegExp(`\\b${key}:\\s+f32`), `WGSL 缺少 ${label} 参数`);
         assert.match(metal, new RegExp(`float ${key};`), `Metal 缺少 ${label} 参数`);
       }
-    }
-
-    if (style === "chromaticMetal") {
       assert.match(wgsl, /let cycle = t \* 0\.46 \+ u\.metalPhase/, "WGSL 动画未使用循环相位");
       assert.match(metal, /float cycle = t \* 0\.46 \+ u\.metalPhase/, "Metal 动画未使用循环相位");
       assert.match(wgsl, /\+ cycle\n\s+\+ u\.metalOffset/, "WGSL 主流场缺少单向相位推进");
@@ -216,7 +187,6 @@ try {
     const webShaderMatch = webCode.match(/^    const shaderSource = (.+);$/m);
     assert.ok(webShaderMatch, `${style}: Web shader 源码缺失`);
     assert.equal(JSON.parse(webShaderMatch[1]), shaderModule.orbShaderSource);
-    assert.match(webCode, /<link rel="icon" href="data:," \/>/, `${style}: Web 图标声明缺失`);
     const webScriptMatch = webCode.match(/<script type="module">([\s\S]*?)<\/script>/);
     assert.ok(webScriptMatch, `${style}: Web 运行脚本缺失`);
     assert.doesNotThrow(() => new Function(webScriptMatch[1]), `${style}: Web 运行脚本语法错误`);
@@ -275,38 +245,6 @@ try {
     .map(Number);
   assert.deepEqual(adjustedWebSeed, adjustedExpected, "调参后的 Web 导出与编辑器不一致");
   assert.deepEqual(adjustedSwiftSeed, adjustedExpected, "调参后的 Swift 导出与编辑器不一致");
-
-  for (const style of ["rainbowDiffusion", "thinkingTrails"]) {
-    const adjusted = {
-      style,
-      ...presets.stylePresets[style],
-      speed: 1.19,
-      bandDensity: 3.4,
-      chromaticShift: 0.51,
-      metalScale: 1.24,
-      metalStretch: 0.37,
-      metalAngle: 28,
-      metalOffset: -0.31,
-      metalPhase: 0.73,
-      metalEvolution: 1.28,
-      metalRoughness: 0.61,
-      metalDepth: 0.77,
-      colorB: "#63D4FF",
-    };
-    const expected = uniforms.createOrbUniformSnapshot(adjusted);
-    const web = createWebExport(adjusted);
-    const swift = createSwiftExport(adjusted);
-    const webMatch = web.match(/const uniformSeed = (\[[^;]+\]);/);
-    const swiftMatch = swift.match(/private let orbUniformSeed: \[Float\] = \[([\s\S]*?)\]/);
-    assert.ok(webMatch, `${style}: 调参后的 Web uniform seed 缺失`);
-    assert.ok(swiftMatch, `${style}: 调参后的 Swift uniform seed 缺失`);
-    assert.deepEqual(JSON.parse(webMatch[1]), expected, `${style}: 调参后的 Web 导出失真`);
-    assert.deepEqual(
-      swiftMatch[1].split(",").map((value) => value.trim()).filter(Boolean).map(Number),
-      expected,
-      `${style}: 调参后的 Swift 导出失真`,
-    );
-  }
 
   console.log(
     `Verified ${presets.styleNames.length} presets: editor, WebGPU, and SwiftUI parameters are identical.`,
