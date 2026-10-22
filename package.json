@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "verify": "node scripts/verify-exports.mjs",
-    "build": "node scripts/verify-exports.mjs && node scripts/verify-audio.mjs && tsc -p tsconfig.json --noEmit && vite build",
+    "verify:voice-agent": "node scripts/verify-voice-agent.mjs",
+    "build": "node scripts/verify-exports.mjs && node scripts/verify-audio.mjs && pnpm verify:voice-agent && tsc -p tsconfig.json --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {

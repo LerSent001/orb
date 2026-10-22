@@ -1,0 +1,23 @@
+:root { color-scheme: dark; font: 15px/1.5 system-ui, sans-serif; color: #edeaf5; background: #08080c; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { width: min(100% - 40px, 680px); margin: auto; }
+header { display: flex; justify-content: space-between; padding: 24px 0; color: #9c96ad; }
+a { color: #bdb2e5; text-underline-offset: 4px; }
+header a { color: inherit; text-decoration: none; }
+iframe { display: block; width: 100%; height: min(60vw, 360px); border: 0; }
+section { text-align: center; padding: 12px 0 40px; }
+h1 { margin: 0; font-size: 28px; font-weight: 550; letter-spacing: -.04em; }
+p { color: #a8a3b6; }
+fieldset { border: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 8px 0; margin: 0; }
+button { background: #17151e; color: #ded8eb; border: 1px solid #37313f; border-radius: 9px; padding: 10px 15px; cursor: pointer; font: inherit; }
+button:hover { background: #25202e; }
+button[aria-pressed="true"] { background: #392e50; border-color: #aa8fe2; }
+button:focus-visible, a:focus-visible { outline: 2px solid #c6a9ff; outline-offset: 3px; }
+button:disabled { opacity: .45; cursor: wait; }
+#status { min-height: 24px; }
+meter { display: block; width: min(240px, 100%); height: 8px; margin: 0 auto 20px; }
+audio { display: block; width: min(100%, 360px); margin: 20px auto; }
+#guide { font-size: 13px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+@media (max-width: 420px) { main { width: calc(100% - 24px); } button { padding: 9px 11px; } }

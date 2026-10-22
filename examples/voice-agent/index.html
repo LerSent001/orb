@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>Liquid Orb · Voice agent</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <a href="../../">Liquid Orb</a>
+        <span id="context">Voice agent</span>
+      </header>
+      <iframe id="orb" title="Voice-responsive orb" allow=""></iframe>
+      <section aria-label="Voice controls">
+        <h1 id="heading">Voice feedback</h1>
+        <p id="privacy">Audio stays on this device. No AI service is connected.</p>
+        <fieldset id="controls" disabled>
+          <legend id="legend" class="sr-only">Agent state</legend>
+          <button data-state="idle">Idle</button>
+          <button data-state="listening">Listen</button>
+          <button data-state="thinking">Think</button>
+          <button data-state="speaking">Audio file</button>
+          <button data-state="muted">Mute</button>
+        </fieldset>
+        <input id="file" type="file" accept="audio/*,.mp3,.wav,.m4a,.ogg,.flac" hidden />
+        <p id="status" role="status">Loading orb…</p>
+        <meter id="level" min="0" max="1" value="0" aria-label="Input level"></meter>
+        <div id="player"></div>
+        <a id="guide" href="https://github.com/LerSent001/orb/tree/main/examples/voice-agent">Integration guide</a>
+      </section>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

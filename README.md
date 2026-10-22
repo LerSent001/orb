@@ -43,6 +43,15 @@ LiquidOrbView(
 
 Run `node scripts/verify-audio.mjs` to verify preset support, silence behavior, invalid input handling, and Web mapping parity. The script writes Swift parity fixtures to `output/audio-qa/`; run `xcrun swift output/audio-qa/native-check.swift` to verify the Swift mapping.
 
+### Voice-agent example
+
+Run `pnpm dev` and open `/examples/voice-agent/` for a working microphone/file
+integration with the standalone Web export. It maps listening, thinking,
+speaking, idle, and muted host states to the two exported visual profiles,
+stops the previous audio source on mode changes, and clears stale audio bands.
+See the [integration guide](examples/voice-agent/README.md) for the mapping,
+privacy behavior, and verification command. No AI service or API key is required.
+
 ### Maintenance status
 
 This project is under active development. Presets, motion models, editor stability, and parity between WebGPU and SwiftUI/Metal output are continuously refined. OpenAI Codex assists with implementation, regression testing, and releases.
@@ -119,6 +128,13 @@ LiquidOrbView(
 ```
 
 运行 `node scripts/verify-audio.mjs` 可检查预设支持范围、静音行为、不合法输入和 Web 参数一致性。脚本会在 `output/audio-qa/` 生成 Swift 对照文件；运行 `xcrun swift output/audio-qa/native-check.swift` 可检查 Swift 映射。
+
+### 语音交互示例
+
+运行 `pnpm dev`，打开 `/examples/voice-agent/`，可体验麦克风／本地文件与独立 Web
+导出的接入。示例将聆听、思考、说话、空闲和静音状态映射到两种导出视觉配置，
+切换状态时停止旧声音来源并清零声音参数。[接入说明](examples/voice-agent/README.md)
+包含状态映射、隐私行为和验证命令。无需 AI 服务或 API Key。
 
 ### 维护状态
 
